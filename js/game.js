@@ -17,22 +17,22 @@
 // 1. EASY-TO-EDIT CONFIG
 // ─────────────────────────────────────────────
 const GAME_CONFIG = {
-  groceryScale: 0.5,        // change this to resize every grocery, everywhere
+  groceryScale: 0.6,         // change this to resize every grocery, everywhere
   cartScale: 1.0,
-  conveyorHeight: 1.15,     // world Y of the belt surface / item height
-  conveyorHalfLength: 1.3,  // belt spans -1.3 .. +1.3 (local X of #conveyor)
-  conveyorSpeed: 0.35,      // metres / second
-  poolSize: 6,              // how many grocery items exist on the belt at once
-  playerHeight: 1.65,
+  conveyorHeight: 1.02,      // world Y of the belt surface / item height
+  conveyorHalfLength: 0.95,  // belt spans -0.95 .. +0.95 (local X of #conveyor)
+  conveyorSpeed: 0.3,        // metres / second
+  poolSize: 6,               // how many grocery items exist on the belt at once
+  playerHeight: 1.6,
 };
 
 // Where each collected ingredient snaps to inside the cart basket
 // (local space of the #cart entity).
 const CART_SLOT_LOCAL = [
-  { x: -0.15, y: 0.34, z: -0.09 },
-  { x: 0.15, y: 0.34, z: -0.09 },
-  { x: -0.15, y: 0.34, z: 0.10 },
-  { x: 0.15, y: 0.34, z: 0.10 },
+  { x: -0.13, y: 0.3, z: -0.08 },
+  { x: 0.13, y: 0.3, z: -0.08 },
+  { x: -0.13, y: 0.3, z: 0.08 },
+  { x: 0.13, y: 0.3, z: 0.08 },
 ];
 
 // ─────────────────────────────────────────────
@@ -131,7 +131,13 @@ function createGroceryEntity(itemId) {
   plane.setAttribute('width', '0.34');
   plane.setAttribute('height', '0.34');
   plane.setAttribute('position', '0 0 0.01');
-  plane.setAttribute('material', `src: ${getEmojiDataURL(groceryCatalog[itemId].emoji)}; transparent: true; shader: flat; side: double`);
+  // IMPORTANT: material must be set as an OBJECT here, not a style-string.
+  // The emoji texture is a data:image/png;base64,... URL, which contains a
+  // semicolon — A-Frame's string-attribute parser splits on ";" and would
+  // silently truncate the src and corrupt the whole material component.
+  plane.setAttribute('material', {
+    shader: 'flat', src: getEmojiDataURL(groceryCatalog[itemId].emoji), transparent: true, side: 'double',
+  });
   wrap.appendChild(plane);
 
   return wrap;
@@ -143,7 +149,7 @@ function updateGroceryVisual(el, itemId) {
   const disc = el.querySelector('.item-disc');
   if (disc) disc.setAttribute('material', 'color', def.color);
   const plane = el.querySelector('.item-emoji');
-  if (plane) plane.setAttribute('material', 'src', getEmojiDataURL(def.emoji));
+  if (plane) plane.setAttribute('material', 'src', getEmojiDataURL(def.emoji)); // safe now: schema is correctly established
 }
 
 // ─────────────────────────────────────────────
@@ -178,9 +184,13 @@ class ShopGame {
   _loop(t) {
     const dt = Math.min((t - this._prevT) / 1000, 0.05);
     this._prevT = t;
-    this.tickConveyor(dt);
-    this.tickHeldItem();
-    if (window.shopAudio && this.camera) window.shopAudio.updateListener(this.camera.object3D);
+    try {
+      this.tickConveyor(dt);
+      this.tickHeldItem();
+      if (window.shopAudio && this.camera) window.shopAudio.updateListener(this.camera.object3D);
+    } catch (e) {
+      console.error('[game.js] tick error (continuing):', e);
+    }
     if (this.running) requestAnimationFrame(this._loop);
   }
 
