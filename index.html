@@ -1,1 +1,197 @@
-hi
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🛒 Shop for Future Self</title>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <script src="js/components.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; background: #06201d; font-family: 'Segoe UI', system-ui, sans-serif; }
+    #instructions {
+      position: fixed; bottom: 20px; right: 20px;
+      background: rgba(10, 40, 36, 0.85); border: 1px solid #00D9B5;
+      border-radius: 12px; padding: 12px 16px; font-size: 12px;
+      color: #EAFBF8; pointer-events: none; max-width: 230px; z-index: 50;
+    }
+    #instructions strong { display: block; margin-bottom: 6px; font-size: 13px; color: #00D9B5; }
+    #toast {
+      position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+      background: rgba(20, 20, 20, 0.88); color: #fff; padding: 8px 18px;
+      border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity 0.25s;
+      pointer-events: none; z-index: 60;
+    }
+    a-scene {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="7" fill="%2300D9B5" opacity="0.85"/><circle cx="14" cy="14" r="3" fill="white"/></svg>') 14 14, crosshair;
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+<div id="instructions">
+  <strong>🌱 How to Play</strong>
+  <u>Desktop</u><br>
+  Mouse — Look around (click to lock)<br>
+  Click a grocery — Grab it<br>
+  Click again — Put it back<br>
+  Click the cart — Place it<br>
+  <br>
+  <u>VR (Quest)</u><br>
+  Point the laser · Trigger — Grab / Place<br>
+  <br>
+  No walking needed — everything is within reach!
+</div>
+
+<a-scene
+  background="color: #0b2a26"
+  fog="type: linear; color: #0b2a26; near: 10; far: 22"
+  vr-mode-ui="enabled: true"
+  renderer="antialias: true; colorManagement: true">
+
+  <!-- ═══════════ FIXED PLAYER (no locomotion at all) ═══════════ -->
+  <a-entity id="player" position="0 0 1.1">
+    <a-entity id="head" camera look-controls="pointerLockEnabled: true" position="0 1.65 0">
+      <a-entity id="cursor" cursor="fuse: false"
+        position="0 0 -1"
+        geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.016"
+        material="color: #00D9B5; shader: flat; opacity: 0.9"
+        raycaster="objects: .grocery-item, .cart-zone, .ui-button; far: 6; interval: 30">
+      </a-entity>
+    </a-entity>
+
+    <!-- VR controllers: laser-controls already raises mouseenter/mouseleave/click
+         on trigger, so grocery-item / cart-zone / ui-button work unmodified. -->
+    <a-entity id="leftHand" class="vr-hand"
+      laser-controls="hand: left"
+      raycaster="objects: .grocery-item, .cart-zone, .ui-button; far: 5"
+      line="color: #00D9B5; opacity: 0.6">
+    </a-entity>
+    <a-entity id="rightHand" class="vr-hand"
+      laser-controls="hand: right"
+      raycaster="objects: .grocery-item, .cart-zone, .ui-button; far: 5"
+      line="color: #00D9B5; opacity: 0.6">
+    </a-entity>
+  </a-entity>
+
+  <!-- ═══════════ LIGHTING ═══════════ -->
+  <a-light type="ambient" color="#dffff8" intensity="0.65"></a-light>
+  <a-light type="directional" color="#ffffff" intensity="0.55" position="1 4 2"></a-light>
+  <a-light type="point" color="#00D9B5" intensity="0.4" position="0 2.6 -1.5" distance="6"></a-light>
+  <a-light type="point" color="#FFB84D" intensity="0.3" position="1.4 2.2 -0.5" distance="5"></a-light>
+
+  <!-- ═══════════ GAME STATION (everything the player interacts with) ═══════════ -->
+  <a-entity id="game-station" position="0 0 0">
+
+    <!-- ── Conveyor belt ─────────────────────────────────────── -->
+    <a-entity id="conveyor" position="0 0 -2.15">
+      <a-box position="0 1.03 0" width="2.9" height="0.1" depth="0.55"
+        material="color: #143b37; roughness: 0.7"></a-box>
+      <a-box position="0 1.09 0" width="2.86" height="0.02" depth="0.5"
+        material="color: #1d5750; roughness: 0.5; emissive: #00D9B5; emissiveIntensity: 0.12"></a-box>
+      <a-cylinder position="-1.42 1.03 0" radius="0.1" height="0.55" rotation="0 0 90"
+        material="color: #0c2b28; metalness: 0.4; roughness: 0.5"></a-cylinder>
+      <a-cylinder position="1.42 1.03 0" radius="0.1" height="0.55" rotation="0 0 90"
+        material="color: #0c2b28; metalness: 0.4; roughness: 0.5"></a-cylinder>
+      <a-box position="0 0.5 0" width="2.7" height="1.0" depth="0.45"
+        material="color: #0a221f; roughness: 0.8"></a-box>
+      <!-- grocery instances are appended here at runtime by game.js -->
+    </a-entity>
+
+    <!-- ── Shopping cart ─────────────────────────────────────── -->
+    <a-entity id="cart" position="0.85 0 -1.05" scale="1 1 1">
+      <a-box position="0 0.14 0" width="0.55" height="0.28" depth="0.4"
+        material="color: #123936; roughness: 0.6"></a-box>
+      <a-box position="-0.26 0.42 0" width="0.03" height="0.42" depth="0.4"
+        material="color: #1d5750; metalness: 0.5; roughness: 0.4"></a-box>
+      <a-box position="0.26 0.42 0" width="0.03" height="0.42" depth="0.4"
+        material="color: #1d5750; metalness: 0.5; roughness: 0.4"></a-box>
+      <a-box position="0 0.42 -0.19" width="0.55" height="0.42" depth="0.03"
+        material="color: #1d5750; metalness: 0.5; roughness: 0.4"></a-box>
+      <a-box position="0 0.42 0.19" width="0.55" height="0.42" depth="0.03"
+        material="color: #1d5750; metalness: 0.5; roughness: 0.4"></a-box>
+      <a-cylinder position="-0.2 0.05 -0.15" radius="0.045" height="0.05" rotation="90 0 0"
+        material="color: #0a221f"></a-cylinder>
+      <a-cylinder position="0.2 0.05 -0.15" radius="0.045" height="0.05" rotation="90 0 0"
+        material="color: #0a221f"></a-cylinder>
+      <a-cylinder position="-0.2 0.05 0.15" radius="0.045" height="0.05" rotation="90 0 0"
+        material="color: #0a221f"></a-cylinder>
+      <a-cylinder position="0.2 0.05 0.15" radius="0.045" height="0.05" rotation="90 0 0"
+        material="color: #0a221f"></a-cylinder>
+
+      <!-- glow that pulses on completion -->
+      <a-box class="cart-glow" position="0 0.3 0" width="0.6" height="0.55" depth="0.45"
+        material="color: #00D9B5; opacity: 0.1; transparent: true; shader: flat; side: double"></a-box>
+
+      <!-- drop zone (click/trigger target) -->
+      <a-entity class="cart-zone" cart-zone
+        geometry="primitive: box; width: 0.6; height: 0.55; depth: 0.45"
+        position="0 0.32 0"
+        material="opacity: 0.12; transparent: true; color: #00D9B5; shader: flat"></a-entity>
+    </a-entity>
+
+    <!-- ── UI: Recipe menu ───────────────────────────────────── -->
+    <a-entity id="recipe-menu" position="0 1.72 -1.35" visible="true">
+      <a-plane width="1.55" height="0.9" material="color: #0a221f; opacity: 0.82; shader: flat; side: double"></a-plane>
+      <a-text value="What are you shopping for?" align="center" color="#00D9B5"
+        width="2.2" position="0 0.32 0.01"></a-text>
+      <a-entity id="recipe-menu-buttons" position="0 -0.02 0.01"></a-entity>
+    </a-entity>
+
+    <!-- ── UI: Shopping list (hidden until a recipe is chosen) ─ -->
+    <a-entity id="shopping-list-panel" position="-1.55 1.5 -1.7" rotation="0 24 0" visible="false">
+      <a-plane width="1.35" height="1.05" material="color: #0a221f; opacity: 0.85; shader: flat; side: double"></a-plane>
+      <a-text id="list-title" value="" align="center" color="#00D9B5"
+        width="2.4" position="0 0.42 0.01"></a-text>
+      <a-entity id="list-rows" position="0 0.18 0.01"></a-entity>
+    </a-entity>
+
+    <!-- ── UI: Completion panel ─────────────────────────────── -->
+    <a-entity id="completion-panel" position="0 1.72 -1.35" visible="false">
+      <a-plane width="1.7" height="1.0" material="color: #0a221f; opacity: 0.88; shader: flat; side: double"></a-plane>
+      <a-text value="You're ready for your future! ✨" align="center" color="#00D9B5"
+        width="2.1" position="0 0.28 0.01"></a-text>
+      <a-text value="Great choices for who you're becoming." align="center" color="#EAFBF8"
+        width="2.0" position="0 0.1 0.01"></a-text>
+      <a-entity class="ui-button" ui-button="action: replay"
+        geometry="primitive: plane; width: 0.6; height: 0.24"
+        material="color: #00D9B5; shader: flat; side: double"
+        position="0 -0.22 0.01">
+        <a-text value="Shop Again" align="center" color="#0a221f" width="2.2" position="0 0 0.01"></a-text>
+      </a-entity>
+    </a-entity>
+
+  </a-entity>
+
+  <!-- ═══════════ COMPACT ENVIRONMENT ═══════════ -->
+  <a-entity id="environment">
+    <a-plane position="0 0 0" rotation="-90 0 0" width="7" height="7"
+      material="color: #0d332f; roughness: 0.85"></a-plane>
+    <a-box position="0 1.6 -2.9" width="7" height="3.2" depth="0.1"
+      material="color: #0a2925; roughness: 0.9"></a-box>
+    <a-text value="FUTURE MARKET" align="center" color="#00D9B5"
+      width="4.5" position="0 2.55 -2.84"></a-text>
+
+    <!-- side shelves for a lived-in feel, kept small -->
+    <a-box position="-2.9 1.1 -1.6" width="0.2" height="2.2" depth="1.3" material="color: #123936"></a-box>
+    <a-box position="2.9 1.1 -1.6" width="0.2" height="2.2" depth="1.3" material="color: #123936"></a-box>
+    <a-box position="-2.9 1.7 -1.6" width="0.18" height="0.06" depth="1.2" material="color: #1d5750"></a-box>
+    <a-box position="2.9 1.7 -1.6" width="0.18" height="0.06" depth="1.2" material="color: #1d5750"></a-box>
+
+    <a-entity id="sparkles">
+      <a-sphere position="-1.2 2.4 -2" radius="0.02" material="color: #FFE066; emissive: #FFE066; emissiveIntensity: 1"
+        animation="property: position; to: -1.2 2.65 -2; dur: 2200; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+      <a-sphere position="1.3 2.5 -2.2" radius="0.02" material="color: #7CE0FF; emissive: #7CE0FF; emissiveIntensity: 1"
+        animation="property: position; to: 1.3 2.75 -2.2; dur: 2600; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+    </a-entity>
+  </a-entity>
+
+</a-scene>
+
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
